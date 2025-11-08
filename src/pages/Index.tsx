@@ -13,6 +13,9 @@ import { QuestSystem } from '@/components/QuestSystem';
 import { ProgressTracker } from '@/components/ProgressTracker';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Loader2, LogOut, Brain, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import type { User } from '@supabase/supabase-js';
@@ -292,9 +295,101 @@ const Index = () => {
               </div>
             ) : (
               <>
+                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Total Skills</CardTitle>
+                      <CardDescription>Your complete skill inventory</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-4xl font-bold text-primary">{skills.length}</div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Confirmed Skills</CardTitle>
+                      <CardDescription>Skills you've validated</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-4xl font-bold text-green-600">
+                        {skills.filter(s => s.is_confirmed).length}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Unlocked Skills</CardTitle>
+                      <CardDescription>Ready to showcase</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-4xl font-bold text-blue-600">
+                        {skills.filter(s => s.state === 'unlocked').length}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Skill Clusters</CardTitle>
+                    <CardDescription>Your skills organized by category</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                      {Object.entries(
+                        skills.reduce((acc, skill) => {
+                          const cluster = skill.cluster || 'Other';
+                          acc[cluster] = (acc[cluster] || 0) + 1;
+                          return acc;
+                        }, {} as Record<string, number>)
+                      ).map(([cluster, count]) => (
+                        <div key={cluster} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                          <span className="font-medium">{cluster}</span>
+                          <Badge variant="secondary" className="text-lg px-3">{count}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Skills by Confidence</CardTitle>
+                    <CardDescription>Your strongest validated skills</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {skills
+                        .sort((a, b) => b.confidence_score - a.confidence_score)
+                        .slice(0, 8)
+                        .map((skill) => (
+                          <div key={skill.id} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{skill.skill_name}</span>
+                                {skill.cluster && (
+                                  <Badge variant="outline" className="text-xs">
+                                    {skill.cluster}
+                                  </Badge>
+                                )}
+                              </div>
+                              <span className="text-sm font-medium text-muted-foreground">
+                                {(skill.confidence_score * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                            <Progress value={skill.confidence_score * 100} className="h-2" />
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <SkillVisualization skills={skills} />
+                
                 <div>
-                  <h2 className="text-2xl font-bold mb-4">Your Skills ({skills.length})</h2>
+                  <h2 className="text-2xl font-bold mb-4">All Skills ({skills.length})</h2>
                   <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                     {skills.map(skill => (
                       <SkillCard

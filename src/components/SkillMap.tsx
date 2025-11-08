@@ -68,13 +68,15 @@ function SkillNode({
         />
       </mesh>
       <Text
-        position={[0, size + 0.5, 0]}
-        fontSize={0.4}
-        color={isLocked ? '#666666' : '#ffffff'}
+        position={[0, size + 0.7, 0]}
+        fontSize={0.6}
+        color="#ffffff"
         anchorX="center"
         anchorY="middle"
-        outlineWidth={0.05}
+        outlineWidth={0.15}
         outlineColor="#000000"
+        outlineOpacity={1}
+        fontWeight="bold"
       >
         {skill.skill_name}
       </Text>
