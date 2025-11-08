@@ -63,7 +63,42 @@ Return a JSON object with a "skills" array in this exact format:
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text }
         ],
-        response_format: { type: "json_object" }
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'extract_skills',
+              description: 'Return extracted skills with evidence and confidence.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  skills: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        skill_name: { type: 'string' },
+                        skill_type: { type: 'string', enum: ['explicit', 'implicit'] },
+                        confidence_score: { type: 'number' },
+                        evidence: {
+                          type: 'array',
+                          items: { type: 'string' },
+                          minItems: 1,
+                          maxItems: 3
+                        }
+                      },
+                      required: ['skill_name', 'skill_type', 'confidence_score', 'evidence'],
+                      additionalProperties: false
+                    }
+                  }
+                },
+                required: ['skills'],
+                additionalProperties: false
+              }
+            }
+          }
+        ],
+        tool_choice: { type: 'function', function: { name: 'extract_skills' } }
       }),
     });
 
@@ -77,21 +112,59 @@ Return a JSON object with a "skills" array in this exact format:
     }
 
     const data = await response.json();
-    console.log('AI response received:', JSON.stringify(data).substring(0, 200));
-    
-    const skillsText = data.choices[0].message.content;
-    console.log('Skills text:', skillsText);
-    
-    let skills = [];
+    console.log('AI response received:', JSON.stringify(data).substring(0, 300));
+
+    let skills: any[] = [];
+
     try {
-      const parsed = JSON.parse(skillsText);
-      console.log('Parsed skills:', parsed);
-      skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
-      console.log('Final skills array length:', skills.length);
-    } catch (parseError) {
-      console.error('JSON parse error:', parseError);
-      console.error('Attempted to parse:', skillsText);
+      const choice = data.choices?.[0];
+      const toolCalls = choice?.message?.tool_calls;
+      console.log('Tool calls present:', Array.isArray(toolCalls), toolCalls?.length || 0);
+
+      const toolCall = toolCalls?.find((t: any) => t.type === 'function' && t.function?.name === 'extract_skills');
+      if (toolCall?.function?.arguments) {
+        console.log('Parsing tool call arguments...');
+        const args = JSON.parse(toolCall.function.arguments);
+        skills = Array.isArray(args.skills) ? args.skills : [];
+      } else {
+        // Fallback: parse content (may include code fences)
+        const content = choice?.message?.content as string;
+        console.log('Fallback content:', content?.slice(0, 200));
+        const clean = (s: string) => s.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+        if (content) {
+          let cleaned = clean(content);
+          try {
+            const parsed = JSON.parse(cleaned);
+            skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
+          } catch (_) {
+            const start = content.indexOf('{');
+            const end = content.lastIndexOf('}');
+            if (start !== -1 && end !== -1 && end > start) {
+              const maybe = content.slice(start, end + 1);
+              const maybeClean = clean(maybe);
+              const parsed = JSON.parse(maybeClean);
+              skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Parsing failure:', e);
     }
+
+    // Normalize and validate
+    skills = (skills || []).filter(Boolean).map((s: any) => {
+      const name = String(s.skill_name ?? s.name ?? '').trim();
+      const type = (s.skill_type === 'implicit' || s.skill_type === 'explicit') ? s.skill_type : 'explicit';
+      let score = Number(s.confidence_score ?? s.confidence ?? 0.8);
+      if (Number.isNaN(score)) score = 0.8;
+      score = Math.max(0, Math.min(1, score));
+      let evidence = Array.isArray(s.evidence) ? s.evidence : [];
+      evidence = evidence.filter((e: any) => typeof e === 'string' && e.trim()).slice(0, 3);
+      return { skill_name: name, skill_type: type, confidence_score: score, evidence };
+    }).filter((s: any) => s.skill_name);
+
+    console.log('Final skills array length:', skills.length);
 
     return new Response(JSON.stringify({ skills }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
