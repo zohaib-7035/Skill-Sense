@@ -91,25 +91,40 @@ export type Database = {
       }
       skill_profiles: {
         Row: {
+          avatar_url: string | null
+          bio: string | null
           created_at: string
+          display_name: string | null
           id: string
+          is_public: boolean | null
           profile_name: string
+          public_slug: string | null
           raw_data: Json | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          display_name?: string | null
           id?: string
+          is_public?: boolean | null
           profile_name?: string
+          public_slug?: string | null
           raw_data?: Json | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
+          bio?: string | null
           created_at?: string
+          display_name?: string | null
           id?: string
+          is_public?: boolean | null
           profile_name?: string
+          public_slug?: string | null
           raw_data?: Json | null
           updated_at?: string
           user_id?: string
@@ -201,7 +216,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_profile_slug: { Args: { base_text: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
