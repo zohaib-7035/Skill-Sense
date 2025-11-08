@@ -15,10 +15,10 @@ serve(async (req) => {
     const { text } = await req.json();
     console.log('Received text length:', text?.length || 0);
     
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!GOOGLE_API_KEY) {
+      throw new Error('GOOGLE_API_KEY is not configured');
     }
 
     if (!text || text.trim().length === 0) {
@@ -60,57 +60,46 @@ Extract a comprehensive list of skills including:
 
 Return ONLY the skills array, nothing else.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'extract_skills',
-              description: 'Return extracted skills with evidence, cluster, microstory, and state.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  skills: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        skill_name: { type: 'string' },
-                        skill_type: { type: 'string', enum: ['explicit', 'implicit'] },
-                        confidence_score: { type: 'number', minimum: 0, maximum: 1 },
-                        evidence: {
-                          type: 'array',
-                          items: { type: 'string' },
-                          minItems: 1,
-                          maxItems: 3
-                        },
-                        cluster: { type: 'string', enum: skillClusters },
-                        microstory: { type: 'string' },
-                        state: { type: 'string', enum: ['locked', 'unlocked'] }
-                      },
-                      required: ['skill_name', 'skill_type', 'confidence_score', 'evidence', 'cluster', 'microstory', 'state'],
-                      additionalProperties: false
-                    }
-                  }
-                },
-                required: ['skills'],
-                additionalProperties: false
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\nAnalyze this text and extract skills:\n\n${text}`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              skills: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    skill_name: { type: "string" },
+                    skill_type: { type: "string", enum: ['explicit', 'implicit'] },
+                    confidence_score: { type: "number" },
+                    evidence: {
+                      type: "array",
+                      items: { type: "string" }
+                    },
+                    cluster: { type: "string" },
+                    microstory: { type: "string" },
+                    state: { type: "string", enum: ['locked', 'unlocked'] }
+                  },
+                  required: ['skill_name', 'skill_type', 'confidence_score', 'evidence', 'cluster', 'microstory', 'state']
+                }
               }
-            }
+            },
+            required: ['skills']
           }
-        ],
-        tool_choice: { type: 'function', function: { name: 'extract_skills' } }
+        }
       }),
     });
 
@@ -124,41 +113,16 @@ Return ONLY the skills array, nothing else.`;
     }
 
     const data = await response.json();
-    console.log('AI response received:', JSON.stringify(data).substring(0, 300));
+    console.log('Gemini response received:', JSON.stringify(data).substring(0, 300));
 
     let skills: any[] = [];
 
     try {
-      const choice = data.choices?.[0];
-      const toolCalls = choice?.message?.tool_calls;
-      console.log('Tool calls present:', Array.isArray(toolCalls), toolCalls?.length || 0);
-
-      const toolCall = toolCalls?.find((t: any) => t.type === 'function' && t.function?.name === 'extract_skills');
-      if (toolCall?.function?.arguments) {
-        console.log('Parsing tool call arguments...');
-        const args = JSON.parse(toolCall.function.arguments);
-        skills = Array.isArray(args.skills) ? args.skills : [];
-      } else {
-        // Fallback: parse content (may include code fences)
-        const content = choice?.message?.content as string;
-        console.log('Fallback content:', content?.slice(0, 200));
-        const clean = (s: string) => s.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-        if (content) {
-          let cleaned = clean(content);
-          try {
-            const parsed = JSON.parse(cleaned);
-            skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
-          } catch (_) {
-            const start = content.indexOf('{');
-            const end = content.lastIndexOf('}');
-            if (start !== -1 && end !== -1 && end > start) {
-              const maybe = content.slice(start, end + 1);
-              const maybeClean = clean(maybe);
-              const parsed = JSON.parse(maybeClean);
-              skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
-            }
-          }
-        }
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (content) {
+        const parsed = JSON.parse(content);
+        skills = Array.isArray(parsed.skills) ? parsed.skills : [];
+        console.log('Parsed skills count:', skills.length);
       }
     } catch (e) {
       console.error('Parsing failure:', e);

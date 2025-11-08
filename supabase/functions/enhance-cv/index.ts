@@ -15,11 +15,11 @@ serve(async (req) => {
     const { skills, originalText } = await req.json();
     console.log('Received request - Skills count:', skills?.length, 'Text length:', originalText?.length);
     
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
 
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!GOOGLE_API_KEY) {
+      console.error('GOOGLE_API_KEY not configured');
+      throw new Error('GOOGLE_API_KEY is not configured');
     }
 
     if (!skills || !Array.isArray(skills)) {
@@ -50,61 +50,49 @@ Original CV content: ${originalText.substring(0, 3000)}
 
 Please provide CV enhancement suggestions.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'enhance_cv',
-              description: 'Return CV enhancement suggestions with professional summary, skills, and experience improvements.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  professional_summary: {
-                    type: 'string',
-                    description: 'A compelling 2-3 sentence professional summary'
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\n${userMessage}`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              professional_summary: {
+                type: "string"
+              },
+              enhanced_skills_section: {
+                type: "array",
+                items: { type: "string" }
+              },
+              experience_improvements: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    original: { type: "string" },
+                    enhanced: { type: "string" }
                   },
-                  enhanced_skills_section: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Categorized skill groupings'
-                  },
-                  experience_improvements: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        original: { type: 'string' },
-                        enhanced: { type: 'string' }
-                      },
-                      required: ['original', 'enhanced']
-                    },
-                    description: 'Original vs enhanced experience bullets'
-                  },
-                  additional_suggestions: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'General CV improvement tips'
-                  }
-                },
-                required: ['professional_summary', 'enhanced_skills_section', 'experience_improvements', 'additional_suggestions'],
-                additionalProperties: false
+                  required: ["original", "enhanced"]
+                }
+              },
+              additional_suggestions: {
+                type: "array",
+                items: { type: "string" }
               }
-            }
+            },
+            required: ["professional_summary", "enhanced_skills_section", "experience_improvements", "additional_suggestions"]
           }
-        ],
-        tool_choice: { type: 'function', function: { name: 'enhance_cv' } }
+        }
       }),
     });
 
@@ -118,7 +106,7 @@ Please provide CV enhancement suggestions.`;
     }
 
     const data = await response.json();
-    console.log('AI response received:', JSON.stringify(data).substring(0, 300));
+    console.log('Gemini response received:', JSON.stringify(data).substring(0, 300));
 
     let suggestions: any = {
       professional_summary: '',
@@ -128,30 +116,10 @@ Please provide CV enhancement suggestions.`;
     };
 
     try {
-      const choice = data.choices?.[0];
-      const toolCalls = choice?.message?.tool_calls;
-      
-      const toolCall = toolCalls?.find((t: any) => t.type === 'function' && t.function?.name === 'enhance_cv');
-      if (toolCall?.function?.arguments) {
-        console.log('Parsing tool call arguments...');
-        suggestions = JSON.parse(toolCall.function.arguments);
-      } else {
-        // Fallback: parse content
-        const content = choice?.message?.content as string;
-        if (content) {
-          const clean = (s: string) => s.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-          let cleaned = clean(content);
-          try {
-            suggestions = JSON.parse(cleaned);
-          } catch (_) {
-            const start = content.indexOf('{');
-            const end = content.lastIndexOf('}');
-            if (start !== -1 && end !== -1 && end > start) {
-              const maybe = content.slice(start, end + 1);
-              suggestions = JSON.parse(clean(maybe));
-            }
-          }
-        }
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (content) {
+        suggestions = JSON.parse(content);
+        console.log('Parsed suggestions successfully');
       }
     } catch (e) {
       console.error('Parsing failure:', e);

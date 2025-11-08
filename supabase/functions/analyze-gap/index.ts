@@ -15,11 +15,11 @@ serve(async (req) => {
     const { userSkills, targetRole } = await req.json();
     console.log('Received request - Skills count:', userSkills?.length, 'Target role:', targetRole?.role_title);
     
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GOOGLE_API_KEY = Deno.env.get('GOOGLE_API_KEY');
 
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!GOOGLE_API_KEY) {
+      console.error('GOOGLE_API_KEY not configured');
+      throw new Error('GOOGLE_API_KEY is not configured');
     }
 
     if (!userSkills || !Array.isArray(userSkills)) {
@@ -50,68 +50,58 @@ Job Description: ${targetRole.role_description || 'No description provided'}
 
 Please analyze the skill gap and provide recommendations.`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${GOOGLE_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
-              name: 'analyze_skill_gap',
-              description: 'Return skill gap analysis with matching skills, missing skills, and learning recommendations.',
-              parameters: {
-                type: 'object',
-                properties: {
-                  matching_skills: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Skills the user has that match the role requirements'
-                  },
-                  missing_skills: {
-                    type: 'array',
-                    items: { type: 'string' },
-                    description: 'Skills required for the role that the user lacks'
-                  },
-                  recommendations: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        skill: { type: 'string' },
-                        resources: {
-                          type: 'array',
-                          items: {
-                            type: 'object',
-                            properties: {
-                              title: { type: 'string' },
-                              url: { type: 'string' },
-                              type: { type: 'string', enum: ['course', 'tutorial', 'article', 'documentation'] }
-                            },
-                            required: ['title', 'url', 'type']
-                          }
+        contents: [{
+          parts: [{
+            text: `${systemPrompt}\n\n${userMessage}`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: "object",
+            properties: {
+              matching_skills: {
+                type: "array",
+                items: { type: "string" }
+              },
+              missing_skills: {
+                type: "array",
+                items: { type: "string" }
+              },
+              recommendations: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    skill: { type: "string" },
+                    resources: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string" },
+                          url: { type: "string" },
+                          type: { type: "string" }
                         },
-                        practice_suggestion: { type: 'string' }
-                      },
-                      required: ['skill', 'resources', 'practice_suggestion']
-                    }
-                  }
-                },
-                required: ['matching_skills', 'missing_skills', 'recommendations'],
-                additionalProperties: false
+                        required: ["title", "url", "type"]
+                      }
+                    },
+                    practice_suggestion: { type: "string" }
+                  },
+                  required: ["skill", "resources", "practice_suggestion"]
+                }
               }
-            }
+            },
+            required: ["matching_skills", "missing_skills", "recommendations"]
           }
-        ],
-        tool_choice: { type: 'function', function: { name: 'analyze_skill_gap' } }
+        }
       }),
     });
 
@@ -125,35 +115,15 @@ Please analyze the skill gap and provide recommendations.`;
     }
 
     const data = await response.json();
-    console.log('AI response received:', JSON.stringify(data).substring(0, 300));
+    console.log('Gemini response received:', JSON.stringify(data).substring(0, 300));
 
     let analysis: any = { matching_skills: [], missing_skills: [], recommendations: [] };
 
     try {
-      const choice = data.choices?.[0];
-      const toolCalls = choice?.message?.tool_calls;
-      
-      const toolCall = toolCalls?.find((t: any) => t.type === 'function' && t.function?.name === 'analyze_skill_gap');
-      if (toolCall?.function?.arguments) {
-        console.log('Parsing tool call arguments...');
-        analysis = JSON.parse(toolCall.function.arguments);
-      } else {
-        // Fallback: parse content
-        const content = choice?.message?.content as string;
-        if (content) {
-          const clean = (s: string) => s.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
-          let cleaned = clean(content);
-          try {
-            analysis = JSON.parse(cleaned);
-          } catch (_) {
-            const start = content.indexOf('{');
-            const end = content.lastIndexOf('}');
-            if (start !== -1 && end !== -1 && end > start) {
-              const maybe = content.slice(start, end + 1);
-              analysis = JSON.parse(clean(maybe));
-            }
-          }
-        }
+      const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (content) {
+        analysis = JSON.parse(content);
+        console.log('Parsed analysis successfully');
       }
     } catch (e) {
       console.error('Parsing failure:', e);
