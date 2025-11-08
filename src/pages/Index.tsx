@@ -11,6 +11,7 @@ import { SkillMap } from '@/components/SkillMap';
 import { SkillDetailModal } from '@/components/SkillDetailModal';
 import { QuestSystem } from '@/components/QuestSystem';
 import { ProgressTracker } from '@/components/ProgressTracker';
+import { ShareProfileDialog } from '@/components/ShareProfileDialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -232,6 +233,12 @@ const Index = () => {
             <h1 className="text-2xl font-bold">SkillSense</h1>
           </div>
           <div className="flex items-center gap-2">
+            {profileId && (
+              <ShareProfileDialog 
+                profileId={profileId} 
+                userEmail={user.email || ''} 
+              />
+            )}
             <Button variant="outline" size="sm" onClick={handleDownloadJSON}>
               <Download className="mr-2 h-4 w-4" />
               Export JSON
