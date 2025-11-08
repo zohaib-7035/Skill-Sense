@@ -13,35 +13,40 @@ serve(async (req) => {
 
   try {
     const { skills, originalText } = await req.json();
+    console.log('Received request - Skills count:', skills?.length, 'Text length:', originalText?.length);
+    
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
+      console.error('LOVABLE_API_KEY not configured');
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const systemPrompt = `You are a professional CV writer. Based on the user's original content and discovered skills (both explicit and hidden), generate suggestions to enhance their CV.
+    if (!skills || !Array.isArray(skills)) {
+      return new Response(JSON.stringify({ error: 'Invalid skills format' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!originalText || originalText.trim().length === 0) {
+      return new Response(JSON.stringify({ error: 'Original text is required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const systemPrompt = `You are a professional CV writer. Based on the user's original content and discovered skills, generate suggestions to enhance their CV.
 
 Provide:
-1. A professional summary that highlights key strengths
-2. Skill-based bullet points that showcase both explicit and implicit skills
-3. Suggestions for reformulating existing experience to highlight hidden skills
+1. A professional summary highlighting key strengths
+2. Skill-based categories and recommendations
+3. Experience improvements that showcase skills effectively`;
 
-Return ONLY a JSON object in this exact format:
-{
-  "professional_summary": "A compelling 2-3 sentence summary",
-  "enhanced_skills_section": ["Skill category 1: skill1, skill2, skill3", "Skill category 2: ..."],
-  "experience_improvements": [
-    {
-      "original": "Original bullet point or section",
-      "enhanced": "Improved version highlighting skills"
-    }
-  ],
-  "additional_suggestions": ["Suggestion 1", "Suggestion 2"]
-}`;
+    const skillsList = skills.map((s: any) => `${s.skill_name} (${s.skill_type})`).join(', ');
+    const userMessage = `Skills discovered: ${skillsList}
 
-    const userMessage = `Skills discovered: ${JSON.stringify(skills)}
-
-Original content: ${originalText}
+Original CV content: ${originalText.substring(0, 3000)}
 
 Please provide CV enhancement suggestions.`;
 
@@ -57,22 +62,108 @@ Please provide CV enhancement suggestions.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage }
         ],
-        response_format: { type: "json_object" }
+        tools: [
+          {
+            type: 'function',
+            function: {
+              name: 'enhance_cv',
+              description: 'Return CV enhancement suggestions with professional summary, skills, and experience improvements.',
+              parameters: {
+                type: 'object',
+                properties: {
+                  professional_summary: {
+                    type: 'string',
+                    description: 'A compelling 2-3 sentence professional summary'
+                  },
+                  enhanced_skills_section: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Categorized skill groupings'
+                  },
+                  experience_improvements: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        original: { type: 'string' },
+                        enhanced: { type: 'string' }
+                      },
+                      required: ['original', 'enhanced']
+                    },
+                    description: 'Original vs enhanced experience bullets'
+                  },
+                  additional_suggestions: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'General CV improvement tips'
+                  }
+                },
+                required: ['professional_summary', 'enhanced_skills_section', 'experience_improvements', 'additional_suggestions'],
+                additionalProperties: false
+              }
+            }
+          }
+        ],
+        tool_choice: { type: 'function', function: { name: 'enhance_cv' } }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('AI gateway error:', response.status, errorText);
-      return new Response(JSON.stringify({ error: 'AI processing failed' }), {
+      return new Response(JSON.stringify({ error: 'AI processing failed', details: errorText }), {
         status: response.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const data = await response.json();
-    const suggestionsText = data.choices[0].message.content;
-    const suggestions = JSON.parse(suggestionsText);
+    console.log('AI response received:', JSON.stringify(data).substring(0, 300));
+
+    let suggestions: any = {
+      professional_summary: '',
+      enhanced_skills_section: [],
+      experience_improvements: [],
+      additional_suggestions: []
+    };
+
+    try {
+      const choice = data.choices?.[0];
+      const toolCalls = choice?.message?.tool_calls;
+      
+      const toolCall = toolCalls?.find((t: any) => t.type === 'function' && t.function?.name === 'enhance_cv');
+      if (toolCall?.function?.arguments) {
+        console.log('Parsing tool call arguments...');
+        suggestions = JSON.parse(toolCall.function.arguments);
+      } else {
+        // Fallback: parse content
+        const content = choice?.message?.content as string;
+        if (content) {
+          const clean = (s: string) => s.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '').trim();
+          let cleaned = clean(content);
+          try {
+            suggestions = JSON.parse(cleaned);
+          } catch (_) {
+            const start = content.indexOf('{');
+            const end = content.lastIndexOf('}');
+            if (start !== -1 && end !== -1 && end > start) {
+              const maybe = content.slice(start, end + 1);
+              suggestions = JSON.parse(clean(maybe));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Parsing failure:', e);
+    }
+
+    // Validate structure
+    if (typeof suggestions.professional_summary !== 'string') suggestions.professional_summary = '';
+    if (!Array.isArray(suggestions.enhanced_skills_section)) suggestions.enhanced_skills_section = [];
+    if (!Array.isArray(suggestions.experience_improvements)) suggestions.experience_improvements = [];
+    if (!Array.isArray(suggestions.additional_suggestions)) suggestions.additional_suggestions = [];
+
+    console.log('Final suggestions - Summary length:', suggestions.professional_summary.length, 'Skills:', suggestions.enhanced_skills_section.length, 'Improvements:', suggestions.experience_improvements.length);
 
     return new Response(JSON.stringify(suggestions), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
