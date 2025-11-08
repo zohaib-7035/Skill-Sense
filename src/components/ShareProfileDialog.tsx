@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Share2, Copy, Check, ExternalLink } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface ShareProfileDialogProps {
@@ -16,67 +23,66 @@ interface ShareProfileDialogProps {
 
 export function ShareProfileDialog({ profileId, userEmail }: ShareProfileDialogProps) {
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
   const [publicSlug, setPublicSlug] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
   const [copied, setCopied] = useState(false);
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (open) {
       loadProfileSettings();
     }
-  }, [open, profileId]);
+  }, [open]);
 
   const loadProfileSettings = async () => {
-    const { data, error } = await supabase
-      .from('skill_profiles')
-      .select('*')
-      .eq('id', profileId)
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('skill_profiles')
+        .select('is_public, display_name, bio, public_slug')
+        .eq('id', profileId)
+        .single();
 
-    if (error) {
-      console.error('Error loading profile:', error);
-      return;
-    }
+      if (error) throw error;
 
-    if (data) {
-      setIsPublic(data.is_public || false);
-      setDisplayName(data.display_name || '');
-      setBio(data.bio || '');
-      setPublicSlug(data.public_slug || '');
-      setAvatarUrl(data.avatar_url || '');
+      if (data) {
+        setIsPublic(data.is_public || false);
+        setDisplayName(data.display_name || '');
+        setBio(data.bio || '');
+        setPublicSlug(data.public_slug || '');
+      }
+    } catch (error) {
+      console.error('Error loading profile settings:', error);
+      toast.error('Failed to load profile settings');
     }
   };
 
   const generateSlug = async () => {
-    const baseName = displayName || userEmail.split('@')[0];
-    
-    const { data, error } = await supabase.rpc('generate_profile_slug', {
-      base_text: baseName
-    });
+    try {
+      const baseName = displayName || userEmail.split('@')[0];
+      const { data, error } = await supabase.rpc('generate_profile_slug', {
+        base_text: baseName,
+      });
 
-    if (error) {
+      if (error) throw error;
+      return data;
+    } catch (error) {
       console.error('Error generating slug:', error);
-      toast.error('Failed to generate profile URL');
       return null;
     }
-
-    return data;
   };
 
   const handleSave = async () => {
-    setSaving(true);
+    setLoading(true);
     try {
       let slug = publicSlug;
       
-      // Generate slug if enabling public profile for the first time
+      // Generate slug if making public and no slug exists
       if (isPublic && !slug) {
         slug = await generateSlug();
         if (!slug) {
-          setSaving(false);
+          toast.error('Failed to generate profile URL');
           return;
         }
         setPublicSlug(slug);
@@ -89,36 +95,33 @@ export function ShareProfileDialog({ profileId, userEmail }: ShareProfileDialogP
           display_name: displayName,
           bio: bio,
           public_slug: slug,
-          avatar_url: avatarUrl,
         })
         .eq('id', profileId);
 
       if (error) throw error;
 
-      toast.success(isPublic ? 'Public profile enabled!' : 'Profile settings saved');
+      toast.success(isPublic ? 'Profile is now public!' : 'Profile is now private');
     } catch (error) {
-      console.error('Error saving profile:', error);
-      toast.error('Failed to save profile settings');
+      console.error('Error updating profile:', error);
+      toast.error('Failed to update profile settings');
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
 
-  const getPublicUrl = () => {
-    if (!publicSlug) return '';
-    return `${window.location.origin}/p/${publicSlug}`;
-  };
-
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(getPublicUrl());
+    const url = `${window.location.origin}/p/${publicSlug}`;
+    navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success('Link copied to clipboard!');
     setTimeout(() => setCopied(false), 2000);
   };
 
   const openPublicProfile = () => {
-    window.open(getPublicUrl(), '_blank');
+    window.open(`${window.location.origin}/p/${publicSlug}`, '_blank');
   };
+
+  const publicUrl = publicSlug ? `${window.location.origin}/p/${publicSlug}` : '';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -128,11 +131,11 @@ export function ShareProfileDialog({ profileId, userEmail }: ShareProfileDialogP
           Share Profile
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Share Your Skill Profile</DialogTitle>
           <DialogDescription>
-            Create a public link to showcase your confirmed skills to employers, colleagues, or on social media.
+            Create a public profile to share your confirmed skills with the world
           </DialogDescription>
         </DialogHeader>
 
@@ -140,7 +143,9 @@ export function ShareProfileDialog({ profileId, userEmail }: ShareProfileDialogP
           {/* Public Toggle */}
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="public-toggle">Make Profile Public</Label>
+              <Label htmlFor="public-toggle" className="text-base">
+                Make Profile Public
+              </Label>
               <p className="text-sm text-muted-foreground">
                 Allow anyone with the link to view your confirmed skills
               </p>
@@ -156,10 +161,10 @@ export function ShareProfileDialog({ profileId, userEmail }: ShareProfileDialogP
             <>
               {/* Display Name */}
               <div className="space-y-2">
-                <Label htmlFor="display-name">Display Name *</Label>
+                <Label htmlFor="display-name">Display Name</Label>
                 <Input
                   id="display-name"
-                  placeholder="John Doe"
+                  placeholder="Your Name"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                 />
@@ -167,48 +172,30 @@ export function ShareProfileDialog({ profileId, userEmail }: ShareProfileDialogP
 
               {/* Bio */}
               <div className="space-y-2">
-                <Label htmlFor="bio">Bio</Label>
+                <Label htmlFor="bio">Bio (Optional)</Label>
                 <Textarea
                   id="bio"
-                  placeholder="Full-stack developer passionate about AI and web technologies..."
+                  placeholder="Tell people about yourself..."
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   rows={3}
                 />
               </div>
 
-              {/* Avatar URL */}
-              <div className="space-y-2">
-                <Label htmlFor="avatar-url">Avatar URL (optional)</Label>
-                <Input
-                  id="avatar-url"
-                  placeholder="https://example.com/avatar.jpg"
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  type="url"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Paste a link to your profile picture
-                </p>
-              </div>
-
-              {/* Public URL Preview */}
+              {/* Public URL */}
               {publicSlug && (
                 <div className="space-y-2">
                   <Label>Your Public Profile URL</Label>
                   <div className="flex gap-2">
-                    <Input
-                      value={getPublicUrl()}
-                      readOnly
-                      className="font-mono text-sm"
-                    />
+                    <Input value={publicUrl} readOnly className="font-mono text-sm" />
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={copyToClipboard}
+                      className="shrink-0"
                     >
                       {copied ? (
-                        <Check className="h-4 w-4 text-green-500" />
+                        <Check className="h-4 w-4" />
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}
@@ -217,27 +204,27 @@ export function ShareProfileDialog({ profileId, userEmail }: ShareProfileDialogP
                       variant="outline"
                       size="icon"
                       onClick={openPublicProfile}
+                      className="shrink-0"
                     >
                       <ExternalLink className="h-4 w-4" />
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Share this link on LinkedIn, Twitter, or your email signature
+                    Share this link on LinkedIn, email signatures, or your resume
                   </p>
                 </div>
               )}
             </>
           )}
+        </div>
 
-          {/* Save Button */}
-          <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving || (isPublic && !displayName)}>
-              {saving ? 'Saving...' : 'Save Settings'}
-            </Button>
-          </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? 'Saving...' : 'Save Changes'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

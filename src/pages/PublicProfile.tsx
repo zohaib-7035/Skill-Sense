@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SkillMap } from '@/components/SkillMap';
-import { Brain, Mail, MapPin, Briefcase, Trophy, Star, ArrowLeft } from 'lucide-react';
+import { Brain, Loader2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Skill {
@@ -25,7 +25,7 @@ interface Profile {
   display_name: string;
   bio: string;
   avatar_url: string;
-  public_slug: string;
+  profile_name: string;
 }
 
 export default function PublicProfile() {
@@ -33,29 +33,37 @@ export default function PublicProfile() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
     loadPublicProfile();
   }, [slug]);
 
   const loadPublicProfile = async () => {
+    if (!slug) return;
+
     try {
-      // Fetch profile
+      // Fetch public profile
       const { data: profileData, error: profileError } = await supabase
         .from('skill_profiles')
         .select('*')
         .eq('public_slug', slug)
         .eq('is_public', true)
-        .single();
+        .maybeSingle();
 
       if (profileError) throw profileError;
+      
       if (!profileData) {
-        toast.error('Profile not found or is private');
-        setLoading(false);
+        setNotFound(true);
         return;
       }
 
-      setProfile(profileData);
+      setProfile({
+        display_name: profileData.display_name || 'Anonymous User',
+        bio: profileData.bio || '',
+        avatar_url: profileData.avatar_url || '',
+        profile_name: profileData.profile_name || 'Professional Profile',
+      });
 
       // Fetch confirmed skills only
       const { data: skillsData, error: skillsError } = await supabase
@@ -67,15 +75,18 @@ export default function PublicProfile() {
 
       if (skillsError) throw skillsError;
 
-      setSkills(skillsData.map(s => ({
-        ...s,
-        skill_type: s.skill_type as 'explicit' | 'implicit',
-        evidence: s.evidence || [],
-        is_confirmed: s.is_confirmed || false,
-      })));
+      if (skillsData) {
+        setSkills(skillsData.map(s => ({
+          ...s,
+          skill_type: s.skill_type as 'explicit' | 'implicit',
+          evidence: s.evidence || [],
+          is_confirmed: s.is_confirmed || false,
+        })));
+      }
     } catch (error) {
       console.error('Error loading public profile:', error);
       toast.error('Failed to load profile');
+      setNotFound(true);
     } finally {
       setLoading(false);
     }
@@ -83,64 +94,44 @@ export default function PublicProfile() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <Brain className="h-12 w-12 animate-spin mx-auto text-primary" />
-          <p className="text-muted-foreground">Loading profile...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
 
-  if (!profile) {
+  if (notFound || !profile) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10">
-        <Card className="max-w-md">
-          <CardHeader>
+      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/10 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <Lock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <CardTitle>Profile Not Found</CardTitle>
             <CardDescription>
-              This profile doesn't exist or is set to private.
+              This profile doesn't exist or is not publicly available.
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Link to="/">
-              <Button variant="outline" className="w-full">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Go to SkillSense
-              </Button>
-            </Link>
-          </CardContent>
         </Card>
       </div>
     );
   }
 
-  const skillsByCluster = skills.reduce((acc, skill) => {
+  const confirmedSkills = skills.filter(s => s.is_confirmed);
+  const skillsByCluster = confirmedSkills.reduce((acc, skill) => {
     const cluster = skill.cluster || 'Other';
-    if (!acc[cluster]) acc[cluster] = [];
-    acc[cluster].push(skill);
+    acc[cluster] = (acc[cluster] || 0) + 1;
     return acc;
-  }, {} as Record<string, Skill[]>);
-
-  const totalXP = skills.reduce((sum, s) => sum + Math.round(s.confidence_score * 100), 0);
-  const avgConfidence = skills.length > 0 
-    ? skills.reduce((sum, s) => sum + s.confidence_score, 0) / skills.length 
-    : 0;
+  }, {} as Record<string, number>);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/10">
-      {/* Header */}
       <header className="border-b bg-background/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Brain className="h-8 w-8 text-primary" />
             <h1 className="text-2xl font-bold">SkillSense</h1>
           </div>
-          <Link to="/">
-            <Button variant="outline">
-              Create Your Profile
-            </Button>
-          </Link>
+          <Badge variant="secondary">Public Profile</Badge>
         </div>
       </header>
 
@@ -148,155 +139,140 @@ export default function PublicProfile() {
         {/* Profile Header */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex flex-col md:flex-row gap-6 items-start">
-              <div className="flex-shrink-0">
-                {profile.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    alt={profile.display_name}
-                    className="w-24 h-24 rounded-full object-cover border-4 border-primary/20"
-                  />
-                ) : (
-                  <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Brain className="h-12 w-12 text-primary" />
-                  </div>
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={profile.avatar_url} alt={profile.display_name} />
+                <AvatarFallback className="text-2xl">
+                  {profile.display_name.charAt(0).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 text-center md:text-left">
+                <h2 className="text-3xl font-bold mb-2">{profile.display_name}</h2>
+                <p className="text-muted-foreground mb-4">{profile.profile_name}</p>
+                {profile.bio && (
+                  <p className="text-sm">{profile.bio}</p>
                 )}
-              </div>
-              
-              <div className="flex-1 space-y-4">
-                <div>
-                  <h1 className="text-3xl font-bold">{profile.display_name}</h1>
-                  <p className="text-muted-foreground mt-2">{profile.bio || 'Professional skill portfolio powered by SkillSense'}</p>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Total Skills</p>
-                    <p className="text-2xl font-bold text-primary">{skills.length}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Skill Clusters</p>
-                    <p className="text-2xl font-bold text-blue-600">{Object.keys(skillsByCluster).length}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Avg Confidence</p>
-                    <p className="text-2xl font-bold text-green-600">{Math.round(avgConfidence * 100)}%</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-muted-foreground">Total XP</p>
-                    <p className="text-2xl font-bold text-yellow-600">{totalXP}</p>
-                  </div>
-                </div>
               </div>
             </div>
           </CardContent>
         </Card>
 
+        {/* Stats Overview */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Confirmed Skills
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-primary">{confirmedSkills.length}</div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Skill Clusters
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-blue-600">
+                {Object.keys(skillsByCluster).length}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                Avg Confidence
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-4xl font-bold text-green-600">
+                {confirmedSkills.length > 0
+                  ? Math.round(
+                      (confirmedSkills.reduce((sum, s) => sum + s.confidence_score, 0) /
+                        confirmedSkills.length) *
+                        100
+                    )
+                  : 0}
+                %
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* 3D Skill Map */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5" />
-              Interactive Skill Map
-            </CardTitle>
-            <CardDescription>
-              Explore skills in 3D • Larger nodes = higher confidence
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SkillMap skills={skills} onSkillClick={() => {}} />
-            <p className="text-sm text-muted-foreground text-center mt-4">
+        {confirmedSkills.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-2xl font-bold">Skill Map</h3>
+            <SkillMap skills={confirmedSkills} onSkillClick={() => {}} />
+            <p className="text-sm text-muted-foreground text-center">
               💡 Click and drag to rotate • Scroll to zoom
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        )}
 
         {/* Skill Clusters */}
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(skillsByCluster).map(([cluster, clusterSkills]) => (
-            <Card key={cluster}>
-              <CardHeader>
-                <CardTitle className="text-lg">{cluster}</CardTitle>
-                <CardDescription>
-                  {clusterSkills.length} skill{clusterSkills.length !== 1 ? 's' : ''}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {clusterSkills.map((skill) => (
-                    <div key={skill.id} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm">{skill.skill_name}</span>
-                        <Badge variant="secondary">
-                          {(skill.confidence_score * 100).toFixed(0)}%
-                        </Badge>
-                      </div>
-                      <Progress value={skill.confidence_score * 100} className="h-2" />
-                    </div>
-                  ))}
+        <Card>
+          <CardHeader>
+            <CardTitle>Skill Categories</CardTitle>
+            <CardDescription>Skills organized by domain</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(skillsByCluster).map(([cluster, count]) => (
+                <div key={cluster} className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                  <span className="font-medium">{cluster}</span>
+                  <Badge variant="secondary" className="text-lg px-3">
+                    {count}
+                  </Badge>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Top Skills */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5 text-yellow-500" />
-              Top Skills by Confidence
-            </CardTitle>
+            <CardTitle>Top Skills</CardTitle>
+            <CardDescription>Highest confidence validated skills</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-3 md:grid-cols-2">
-              {skills
+            <div className="space-y-4">
+              {confirmedSkills
                 .sort((a, b) => b.confidence_score - a.confidence_score)
                 .slice(0, 10)
                 .map((skill) => (
-                  <div key={skill.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="w-2 h-2 rounded-full bg-primary" />
-                      <span className="font-medium">{skill.skill_name}</span>
-                      {skill.cluster && (
-                        <Badge variant="outline" className="text-xs">
-                          {skill.cluster}
-                        </Badge>
-                      )}
+                  <div key={skill.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{skill.skill_name}</span>
+                        {skill.cluster && (
+                          <Badge variant="outline" className="text-xs">
+                            {skill.cluster}
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="text-sm font-medium text-muted-foreground">
+                        {(skill.confidence_score * 100).toFixed(0)}%
+                      </span>
                     </div>
-                    <Badge variant="default" className="bg-green-500">
-                      {(skill.confidence_score * 100).toFixed(0)}%
-                    </Badge>
+                    <Progress value={skill.confidence_score * 100} className="h-2" />
                   </div>
                 ))}
             </div>
           </CardContent>
         </Card>
 
-        {/* Footer CTA */}
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="pt-6 text-center space-y-4">
-            <Brain className="h-12 w-12 mx-auto text-primary" />
-            <h2 className="text-2xl font-bold">Create Your Own Skill Profile</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              Build a professional skill portfolio like this one. Upload your CV, extract skills with AI, 
-              complete quests to unlock abilities, and share your unique profile link.
-            </p>
-            <Link to="/">
-              <Button size="lg" className="mt-4">
-                Get Started for Free
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t mt-12 py-6 bg-background/50">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>Powered by <span className="font-semibold text-primary">SkillSense</span> • AI-Powered Skill Discovery & Validation</p>
+        {/* Footer */}
+        <div className="text-center text-sm text-muted-foreground py-8">
+          <p>Powered by SkillSense • Build your own skill profile today</p>
         </div>
-      </footer>
+      </main>
     </div>
   );
 }
