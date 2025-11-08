@@ -7,6 +7,10 @@ import { SkillCard } from '@/components/SkillCard';
 import { SkillVisualization } from '@/components/SkillVisualization';
 import { GapAnalysis } from '@/components/GapAnalysis';
 import { CVEnhancement } from '@/components/CVEnhancement';
+import { SkillMap } from '@/components/SkillMap';
+import { SkillDetailModal } from '@/components/SkillDetailModal';
+import { QuestSystem } from '@/components/QuestSystem';
+import { ProgressTracker } from '@/components/ProgressTracker';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, LogOut, Brain, Download } from 'lucide-react';
@@ -20,6 +24,9 @@ interface Skill {
   confidence_score: number;
   evidence: string[];
   is_confirmed: boolean;
+  cluster?: string;
+  microstory?: string;
+  state?: string;
 }
 
 const Index = () => {
@@ -29,6 +36,8 @@ const Index = () => {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [processing, setProcessing] = useState(false);
   const [originalText, setOriginalText] = useState('');
+  const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -115,6 +124,9 @@ const Index = () => {
           skill_type: skill.skill_type,
           confidence_score: skill.confidence_score,
           evidence: skill.evidence || [],
+          cluster: skill.cluster || 'Other',
+          microstory: skill.microstory || '',
+          state: skill.state || 'unlocked',
         }));
 
         const { error: insertError } = await supabase
@@ -137,15 +149,23 @@ const Index = () => {
   };
 
   const handleConfirmSkill = async (skillId: string) => {
+    const skill = skills.find(s => s.id === skillId);
+    const updates: any = { is_confirmed: true };
+    
+    // If confirming increases confidence, unlock it
+    if (skill && skill.confidence_score >= 0.5) {
+      updates.state = 'unlocked';
+    }
+
     const { error } = await supabase
       .from('skills')
-      .update({ is_confirmed: true })
+      .update(updates)
       .eq('id', skillId);
 
     if (error) {
       toast.error('Failed to confirm skill');
     } else {
-      setSkills(skills.map(s => s.id === skillId ? { ...s, is_confirmed: true } : s));
+      setSkills(skills.map(s => s.id === skillId ? { ...s, ...updates } : s));
       toast.success('Skill confirmed!');
     }
   };
@@ -180,6 +200,13 @@ const Index = () => {
     linkElement.click();
     toast.success('Skills exported as JSON');
   };
+
+  const handleSkillClick = (skill: Skill) => {
+    setSelectedSkill(skill);
+    setIsModalOpen(true);
+  };
+
+  const lockedSkills = skills.filter(s => s.state === 'locked');
 
   if (loading) {
     return (
@@ -216,11 +243,13 @@ const Index = () => {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="extract" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="extract">Extract Skills</TabsTrigger>
-            <TabsTrigger value="profile">Skill Profile</TabsTrigger>
-            <TabsTrigger value="gap">Gap Analysis</TabsTrigger>
-            <TabsTrigger value="cv">CV Enhancement</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="extract">Extract</TabsTrigger>
+            <TabsTrigger value="map">Skill Map</TabsTrigger>
+            <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="quests">Quests</TabsTrigger>
+            <TabsTrigger value="gap">Gap</TabsTrigger>
+            <TabsTrigger value="cv">CV</TabsTrigger>
           </TabsList>
 
           <TabsContent value="extract" className="space-y-6">
@@ -234,6 +263,24 @@ const Index = () => {
               <FileUpload onTextExtracted={handleTextExtracted} />
               <TextInput onTextSubmit={handleTextExtracted} />
             </div>
+          </TabsContent>
+
+          <TabsContent value="map" className="space-y-6">
+            {skills.length === 0 ? (
+              <div className="text-center p-12 bg-muted rounded-lg">
+                <p className="text-muted-foreground">
+                  No skills to visualize yet. Extract some skills first!
+                </p>
+              </div>
+            ) : (
+              <>
+                <ProgressTracker skills={skills} />
+                <SkillMap skills={skills} onSkillClick={handleSkillClick} />
+                <p className="text-sm text-muted-foreground text-center">
+                  💡 Click and drag to rotate • Scroll to zoom • Click nodes for details
+                </p>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="profile" className="space-y-6">
@@ -263,6 +310,22 @@ const Index = () => {
             )}
           </TabsContent>
 
+          <TabsContent value="quests" className="space-y-6">
+            {profileId && skills.length > 0 ? (
+              <QuestSystem 
+                profileId={profileId}
+                lockedSkills={lockedSkills}
+                onQuestComplete={loadUserProfile}
+              />
+            ) : (
+              <div className="text-center p-12 bg-muted rounded-lg">
+                <p className="text-muted-foreground">
+                  Extract some skills first to unlock quests!
+                </p>
+              </div>
+            )}
+          </TabsContent>
+
           <TabsContent value="gap">
             {profileId && skills.length > 0 ? (
               <GapAnalysis profileId={profileId} skills={skills} />
@@ -287,6 +350,14 @@ const Index = () => {
             )}
           </TabsContent>
         </Tabs>
+
+        <SkillDetailModal
+          skill={selectedSkill}
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onAccept={handleConfirmSkill}
+          onReject={handleRemoveSkill}
+        />
       </main>
     </div>
   );

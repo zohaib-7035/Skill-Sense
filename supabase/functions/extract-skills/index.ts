@@ -28,28 +28,37 @@ serve(async (req) => {
       });
     }
 
-    const systemPrompt = `You are a professional skills analyst. Extract both explicit and implicit skills from the provided text.
+    const skillClusters = [
+      "Programming & Development",
+      "Data & Analytics", 
+      "Design & UX",
+      "Management & Leadership",
+      "Communication & Collaboration",
+      "Cloud & Infrastructure",
+      "Security & Compliance",
+      "Marketing & Sales",
+      "Product & Strategy",
+      "Other"
+    ];
 
-Explicit skills are directly mentioned (e.g., "Python", "Project Management", "SQL").
-Implicit skills are inferred from context (e.g., leadership from "managed a team of 10", problem-solving from "resolved complex technical challenges").
+    const systemPrompt = `You are an AI skill extraction expert. Analyze the provided text and extract both explicit and implicit professional skills.
 
-For each skill:
-1. Identify the skill name
-2. Classify as "explicit" or "implicit"
-3. Assign a confidence score between 0.00 and 1.00
-4. Provide evidence snippets (1-3 relevant quotes from the text)
+For each skill identified, provide:
+1. skill_name: The name of the skill
+2. skill_type: Either "explicit" (directly mentioned) or "implicit" (inferred from context)
+3. confidence_score: A number between 0 and 1 indicating confidence
+4. evidence: An array of text snippets from the original text that support this skill
+5. cluster: Categorize the skill into one of these clusters: ${skillClusters.join(', ')}
+6. microstory: A brief 1-2 sentence story showing how this skill was demonstrated in the text
+7. state: Set to "locked" if confidence < 0.5, otherwise "unlocked"
 
-Return a JSON object with a "skills" array in this exact format:
-{
-  "skills": [
-    {
-      "skill_name": "Python",
-      "skill_type": "explicit",
-      "confidence_score": 0.95,
-      "evidence": ["5 years of Python development", "Built Python-based APIs"]
-    }
-  ]
-}`;
+Extract a comprehensive list of skills including:
+- Technical skills (programming languages, tools, frameworks)
+- Soft skills (leadership, communication, teamwork)
+- Domain knowledge (industry-specific expertise)
+- Methodologies (Agile, DevOps, etc.)
+
+Return ONLY the skills array, nothing else.`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -68,7 +77,7 @@ Return a JSON object with a "skills" array in this exact format:
             type: 'function',
             function: {
               name: 'extract_skills',
-              description: 'Return extracted skills with evidence and confidence.',
+              description: 'Return extracted skills with evidence, cluster, microstory, and state.',
               parameters: {
                 type: 'object',
                 properties: {
@@ -79,15 +88,18 @@ Return a JSON object with a "skills" array in this exact format:
                       properties: {
                         skill_name: { type: 'string' },
                         skill_type: { type: 'string', enum: ['explicit', 'implicit'] },
-                        confidence_score: { type: 'number' },
+                        confidence_score: { type: 'number', minimum: 0, maximum: 1 },
                         evidence: {
                           type: 'array',
                           items: { type: 'string' },
                           minItems: 1,
                           maxItems: 3
-                        }
+                        },
+                        cluster: { type: 'string', enum: skillClusters },
+                        microstory: { type: 'string' },
+                        state: { type: 'string', enum: ['locked', 'unlocked'] }
                       },
-                      required: ['skill_name', 'skill_type', 'confidence_score', 'evidence'],
+                      required: ['skill_name', 'skill_type', 'confidence_score', 'evidence', 'cluster', 'microstory', 'state'],
                       additionalProperties: false
                     }
                   }
@@ -161,7 +173,18 @@ Return a JSON object with a "skills" array in this exact format:
       score = Math.max(0, Math.min(1, score));
       let evidence = Array.isArray(s.evidence) ? s.evidence : [];
       evidence = evidence.filter((e: any) => typeof e === 'string' && e.trim()).slice(0, 3);
-      return { skill_name: name, skill_type: type, confidence_score: score, evidence };
+      const cluster = s.cluster || 'Other';
+      const microstory = String(s.microstory || 'No story available').trim();
+      const state = s.state || (score < 0.5 ? 'locked' : 'unlocked');
+      return { 
+        skill_name: name, 
+        skill_type: type, 
+        confidence_score: score, 
+        evidence,
+        cluster,
+        microstory,
+        state
+      };
     }).filter((s: any) => s.skill_name);
 
     console.log('Final skills array length:', skills.length);
