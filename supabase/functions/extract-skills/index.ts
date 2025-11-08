@@ -13,10 +13,19 @@ serve(async (req) => {
 
   try {
     const { text } = await req.json();
+    console.log('Received text length:', text?.length || 0);
+    
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
 
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
+    }
+
+    if (!text || text.trim().length === 0) {
+      console.log('Empty text received');
+      return new Response(JSON.stringify({ skills: [] }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const systemPrompt = `You are a professional skills analyst. Extract both explicit and implicit skills from the provided text.
@@ -30,15 +39,17 @@ For each skill:
 3. Assign a confidence score between 0.00 and 1.00
 4. Provide evidence snippets (1-3 relevant quotes from the text)
 
-Return ONLY a JSON array in this exact format:
-[
-  {
-    "skill_name": "Python",
-    "skill_type": "explicit",
-    "confidence_score": 0.95,
-    "evidence": ["5 years of Python development", "Built Python-based APIs"]
-  }
-]`;
+Return a JSON object with a "skills" array in this exact format:
+{
+  "skills": [
+    {
+      "skill_name": "Python",
+      "skill_type": "explicit",
+      "confidence_score": 0.95,
+      "evidence": ["5 years of Python development", "Built Python-based APIs"]
+    }
+  ]
+}`;
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -59,21 +70,27 @@ Return ONLY a JSON array in this exact format:
     if (!response.ok) {
       const errorText = await response.text();
       console.error('AI gateway error:', response.status, errorText);
-      return new Response(JSON.stringify({ error: 'AI processing failed' }), {
+      return new Response(JSON.stringify({ error: 'AI processing failed', details: errorText }), {
         status: response.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const data = await response.json();
-    const skillsText = data.choices[0].message.content;
+    console.log('AI response received:', JSON.stringify(data).substring(0, 200));
     
-    let skills;
+    const skillsText = data.choices[0].message.content;
+    console.log('Skills text:', skillsText);
+    
+    let skills = [];
     try {
       const parsed = JSON.parse(skillsText);
-      skills = Array.isArray(parsed) ? parsed : parsed.skills || [];
-    } catch {
-      skills = [];
+      console.log('Parsed skills:', parsed);
+      skills = Array.isArray(parsed) ? parsed : (parsed.skills || []);
+      console.log('Final skills array length:', skills.length);
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+      console.error('Attempted to parse:', skillsText);
     }
 
     return new Response(JSON.stringify({ skills }), {
