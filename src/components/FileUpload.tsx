@@ -11,12 +11,10 @@ interface FileUploadProps {
 
 export function FileUpload({ onTextExtracted }: FileUploadProps) {
   const [loading, setLoading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processFile = async (file: File) => {
     setLoading(true);
     try {
       const text = await parseDocument(file);
@@ -32,6 +30,48 @@ export function FileUpload({ onTextExtracted }: FileUploadProps) {
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length === 0) return;
+
+    const file = files[0];
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    
+    if (!['pdf', 'docx', 'txt'].includes(extension || '')) {
+      toast.error('Please upload PDF, DOCX, or TXT files only');
+      return;
+    }
+
+    await processFile(file);
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -44,10 +84,20 @@ export function FileUpload({ onTextExtracted }: FileUploadProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 text-center hover:border-primary/50 transition-colors">
-          <Upload className="h-12 w-12 text-muted-foreground mb-4" />
+        <div 
+          className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 text-center transition-all ${
+            isDragging 
+              ? 'border-primary bg-primary/10 scale-105' 
+              : 'border-border hover:border-primary/50'
+          }`}
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          <Upload className={`h-12 w-12 mb-4 transition-colors ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
           <p className="text-sm text-muted-foreground mb-4">
-            Click to upload or drag and drop
+            {isDragging ? 'Drop your file here' : 'Click to upload or drag and drop'}
           </p>
           <input
             ref={fileInputRef}
