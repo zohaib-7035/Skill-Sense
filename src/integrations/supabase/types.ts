@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      quests: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          is_completed: boolean | null
+          quest_description: string
+          quest_type: string
+          skill_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_completed?: boolean | null
+          quest_description: string
+          quest_type: string
+          skill_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_completed?: boolean | null
+          quest_description?: string
+          quest_type?: string
+          skill_id?: string
+        }
+        Relationships: []
+      }
       skill_gaps: {
         Row: {
           created_at: string
@@ -88,36 +118,45 @@ export type Database = {
       }
       skills: {
         Row: {
+          cluster: string | null
           confidence_score: number
           created_at: string
           evidence: string[] | null
           id: string
           is_confirmed: boolean | null
+          microstory: string | null
           profile_id: string
           skill_name: string
           skill_type: string
+          state: string | null
           updated_at: string
         }
         Insert: {
+          cluster?: string | null
           confidence_score: number
           created_at?: string
           evidence?: string[] | null
           id?: string
           is_confirmed?: boolean | null
+          microstory?: string | null
           profile_id: string
           skill_name: string
           skill_type: string
+          state?: string | null
           updated_at?: string
         }
         Update: {
+          cluster?: string | null
           confidence_score?: number
           created_at?: string
           evidence?: string[] | null
           id?: string
           is_confirmed?: boolean | null
+          microstory?: string | null
           profile_id?: string
           skill_name?: string
           skill_type?: string
+          state?: string | null
           updated_at?: string
         }
         Relationships: [
