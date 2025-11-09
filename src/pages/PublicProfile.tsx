@@ -43,12 +43,11 @@ export default function PublicProfile() {
     if (!slug) return;
 
     try {
-      // Fetch public profile
+      // Fetch public profile using secure view
       const { data: profileData, error: profileError } = await supabase
-        .from('skill_profiles')
+        .from('public_skill_profiles')
         .select('*')
         .eq('public_slug', slug)
-        .eq('is_public', true)
         .maybeSingle();
 
       if (profileError) throw profileError;
