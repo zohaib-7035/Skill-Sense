@@ -1,6 +1,6 @@
 # SkillSense - AI-Powered Skill Discovery & Career Development Platform
 
-SkillSense is an intelligent career development application that transforms how you discover, manage, and showcase your professional skills. Using advanced AI analysis, it extracts skills from multiple sources, gamifies skill development through quests, and provides comprehensive career insights.
+SkillSense is an intelligent career development application which transforms how you discover, manage, and showcase your professional skills. Using advanced AI analysis, it extracts skills from multiple sources, gamifies skill development through quests, and provides comprehensive career insights.
 
 ## 🎯 Features
 
