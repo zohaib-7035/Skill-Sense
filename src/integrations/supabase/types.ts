@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      discovered_skills: {
+        Row: {
+          confidence_score: number
+          created_at: string
+          id: string
+          inferred_from: Json | null
+          is_confirmed: boolean | null
+          is_rejected: boolean | null
+          profile_id: string
+          reasoning: string | null
+          skill_name: string
+          updated_at: string
+        }
+        Insert: {
+          confidence_score: number
+          created_at?: string
+          id?: string
+          inferred_from?: Json | null
+          is_confirmed?: boolean | null
+          is_rejected?: boolean | null
+          profile_id: string
+          reasoning?: string | null
+          skill_name: string
+          updated_at?: string
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          inferred_from?: Json | null
+          is_confirmed?: boolean | null
+          is_rejected?: boolean | null
+          profile_id?: string
+          reasoning?: string | null
+          skill_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      organization_members: {
+        Row: {
+          id: string
+          joined_at: string
+          organization_id: string
+          role: string | null
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          organization_id: string
+          role?: string | null
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          organization_id?: string
+          role?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       quests: {
         Row: {
           completed_at: string | null

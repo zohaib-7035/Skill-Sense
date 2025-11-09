@@ -8,6 +8,8 @@ import { SkillVisualization } from '@/components/SkillVisualization';
 import { GapAnalysis } from '@/components/GapAnalysis';
 import { CVEnhancement } from '@/components/CVEnhancement';
 import { SkillMap } from '@/components/SkillMap';
+import { HiddenSkillDiscovery } from '@/components/HiddenSkillDiscovery';
+import { TeamIntelligence } from '@/components/TeamIntelligence';
 import { SkillDetailModal } from '@/components/SkillDetailModal';
 import { QuestSystem } from '@/components/QuestSystem';
 import { ProgressTracker } from '@/components/ProgressTracker';
@@ -253,11 +255,13 @@ const Index = () => {
 
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="extract" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="extract">Extract</TabsTrigger>
             <TabsTrigger value="map">Skill Map</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="quests">Quests</TabsTrigger>
+            <TabsTrigger value="discover">Discover</TabsTrigger>
+            <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="gap">Gap</TabsTrigger>
             <TabsTrigger value="cv">CV</TabsTrigger>
           </TabsList>
@@ -426,6 +430,26 @@ const Index = () => {
                 </p>
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="discover">
+            {profileId && skills.length > 0 ? (
+              <HiddenSkillDiscovery 
+                profileId={profileId} 
+                skills={skills}
+                onSkillsDiscovered={loadUserProfile}
+              />
+            ) : (
+              <div className="text-center p-12 bg-muted rounded-lg">
+                <p className="text-muted-foreground">
+                  Extract at least 5 skills to discover hidden competencies!
+                </p>
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="team">
+            <TeamIntelligence />
           </TabsContent>
 
           <TabsContent value="gap">
