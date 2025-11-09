@@ -164,6 +164,13 @@ export type Database = {
             foreignKeyName: "skill_gaps_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "public_skill_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "skill_gaps_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "skill_profiles"
             referencedColumns: ["id"]
           },
@@ -266,6 +273,13 @@ export type Database = {
             foreignKeyName: "skills_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "public_skill_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "skills_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "skill_profiles"
             referencedColumns: ["id"]
           },
@@ -300,7 +314,45 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_skill_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          created_at: string | null
+          display_name: string | null
+          id: string | null
+          is_public: boolean | null
+          profile_name: string | null
+          public_slug: string | null
+          raw_data: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string | null
+          is_public?: boolean | null
+          profile_name?: string | null
+          public_slug?: string | null
+          raw_data?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string | null
+          display_name?: string | null
+          id?: string | null
+          is_public?: boolean | null
+          profile_name?: string | null
+          public_slug?: string | null
+          raw_data?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       generate_profile_slug: { Args: { base_text: string }; Returns: string }
