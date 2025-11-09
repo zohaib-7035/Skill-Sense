@@ -265,8 +265,8 @@ const Index = () => {
         try {
           const { data, error } = await supabase.functions.invoke('github-skill-extract', {
             body: { 
-              username: pendingGithub.username,
-              token: pendingGithub.token || undefined
+              githubUsername: pendingGithub.username.trim(),
+              githubToken: pendingGithub.token.trim() || undefined
             }
           });
           if (!error && data?.skills) {
