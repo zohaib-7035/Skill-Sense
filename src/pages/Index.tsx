@@ -237,6 +237,7 @@ const Index = () => {
     setAggregateProgress({});
     
     const allSkills: any[] = [];
+    let combinedText = '';
 
     try {
       // Extract from document
@@ -246,6 +247,7 @@ const Index = () => {
           const { parseDocument } = await import('@/lib/documentParser');
           const text = await parseDocument(pendingFile);
           if (text) {
+            combinedText += text + '\n\n';
             const { data, error } = await supabase.functions.invoke('extract-skills', {
               body: { text },
             });
@@ -282,6 +284,7 @@ const Index = () => {
       if (pendingText.trim()) {
         setAggregateProgress(prev => ({ ...prev, text: 'Processing...' }));
         try {
+          combinedText += pendingText + '\n\n';
           const { data, error } = await supabase.functions.invoke('extract-skills', {
             body: { text: pendingText },
           });
@@ -292,6 +295,11 @@ const Index = () => {
         } catch (error) {
           setAggregateProgress(prev => ({ ...prev, text: '✗ Failed' }));
         }
+      }
+      
+      // Store combined text for CV enhancement
+      if (combinedText.trim()) {
+        setOriginalText(combinedText.trim());
       }
 
       // Merge duplicate skills
