@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { AuthForm } from '@/components/auth/AuthForm';
-import { FileUpload } from '@/components/FileUpload';
-import { TextInput } from '@/components/TextInput';
 import { SkillCard } from '@/components/SkillCard';
 import { SkillVisualization } from '@/components/SkillVisualization';
 import { GapAnalysis } from '@/components/GapAnalysis';
@@ -10,7 +8,7 @@ import { CVEnhancement } from '@/components/CVEnhancement';
 import { SkillMap } from '@/components/SkillMap';
 import { HiddenSkillDiscovery } from '@/components/HiddenSkillDiscovery';
 import { TeamIntelligence } from '@/components/TeamIntelligence';
-import { GitHubIntegration } from '@/components/GitHubIntegration';
+import { UnifiedDataImport } from '@/components/UnifiedDataImport';
 import { SkillDetailModal } from '@/components/SkillDetailModal';
 import { QuestSystem } from '@/components/QuestSystem';
 import { ProgressTracker } from '@/components/ProgressTracker';
@@ -268,22 +266,21 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="extract" className="space-y-6">
-            {profileId && (
-              <GitHubIntegration 
-                profileId={profileId}
-                onSkillsExtracted={loadUserProfile}
-              />
-            )}
-            
-            {processing && (
-              <div className="flex items-center justify-center p-8 bg-muted rounded-lg">
-                <Loader2 className="mr-2 h-6 w-6 animate-spin" />
-                <p>Analyzing your content with AI...</p>
-              </div>
-            )}
-            <div className="grid gap-6 md:grid-cols-2">
-              <FileUpload onTextExtracted={handleTextExtracted} />
-              <TextInput onTextSubmit={handleTextExtracted} />
+            <div className="max-w-2xl mx-auto">
+              {processing && (
+                <div className="flex items-center justify-center p-8 bg-muted rounded-lg mb-6">
+                  <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                  <p>Analyzing your content with AI...</p>
+                </div>
+              )}
+              
+              {profileId && (
+                <UnifiedDataImport
+                  profileId={profileId}
+                  onDataExtracted={handleTextExtracted}
+                  onSkillsExtracted={loadUserProfile}
+                />
+              )}
             </div>
           </TabsContent>
 
