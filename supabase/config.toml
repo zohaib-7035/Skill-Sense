@@ -2,3 +2,6 @@ project_id = "nzrzlmnygygzivezpjof"
 
 [functions.discover-skills]
 verify_jwt = false
+
+[functions.github-skill-extract]
+verify_jwt = false

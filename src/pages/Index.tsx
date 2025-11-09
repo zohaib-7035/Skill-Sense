@@ -10,6 +10,7 @@ import { CVEnhancement } from '@/components/CVEnhancement';
 import { SkillMap } from '@/components/SkillMap';
 import { HiddenSkillDiscovery } from '@/components/HiddenSkillDiscovery';
 import { TeamIntelligence } from '@/components/TeamIntelligence';
+import { GitHubIntegration } from '@/components/GitHubIntegration';
 import { SkillDetailModal } from '@/components/SkillDetailModal';
 import { QuestSystem } from '@/components/QuestSystem';
 import { ProgressTracker } from '@/components/ProgressTracker';
@@ -267,6 +268,13 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="extract" className="space-y-6">
+            {profileId && (
+              <GitHubIntegration 
+                profileId={profileId}
+                onSkillsExtracted={loadUserProfile}
+              />
+            )}
+            
             {processing && (
               <div className="flex items-center justify-center p-8 bg-muted rounded-lg">
                 <Loader2 className="mr-2 h-6 w-6 animate-spin" />
