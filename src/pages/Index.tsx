@@ -11,8 +11,6 @@ import { SkillMap } from '@/components/SkillMap';
 import { HiddenSkillDiscovery } from '@/components/HiddenSkillDiscovery';
 import { TeamIntelligence } from '@/components/TeamIntelligence';
 import { GitHubIntegration } from '@/components/GitHubIntegration';
-import { SmartAggregateExtract } from '@/components/SmartAggregateExtract';
-import { UnifiedDataImport } from '@/components/UnifiedDataImport';
 import { SkillDetailModal } from '@/components/SkillDetailModal';
 import { QuestSystem } from '@/components/QuestSystem';
 import { ProgressTracker } from '@/components/ProgressTracker';
@@ -270,13 +268,6 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="extract" className="space-y-6">
-            {profileId && (
-              <GitHubIntegration 
-                profileId={profileId}
-                onSkillsExtracted={loadUserProfile}
-              />
-            )}
-            
             {processing && (
               <div className="flex items-center justify-center p-8 bg-muted rounded-lg">
                 <Loader2 className="mr-2 h-6 w-6 animate-spin" />
@@ -284,47 +275,19 @@ const Index = () => {
               </div>
             )}
             
-            <div className="grid gap-6 md:grid-cols-2">
-              <FileUpload onTextExtracted={handleTextExtracted} />
-              <TextInput onTextSubmit={handleTextExtracted} />
-            </div>
-
-            <div className="relative py-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or use unified import
-                </span>
+            <div className="space-y-6">
+              {profileId && (
+                <GitHubIntegration 
+                  profileId={profileId}
+                  onSkillsExtracted={loadUserProfile}
+                />
+              )}
+              
+              <div className="grid gap-6 md:grid-cols-2">
+                <FileUpload onTextExtracted={handleTextExtracted} />
+                <TextInput onTextSubmit={handleTextExtracted} />
               </div>
             </div>
-
-            {profileId && (
-              <UnifiedDataImport
-                profileId={profileId}
-                onDataExtracted={handleTextExtracted}
-                onSkillsExtracted={loadUserProfile}
-              />
-            )}
-
-            <div className="relative py-6">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Advanced Feature
-                </span>
-              </div>
-            </div>
-
-            {profileId && (
-              <SmartAggregateExtract
-                profileId={profileId}
-                onComplete={loadUserProfile}
-              />
-            )}
           </TabsContent>
 
           <TabsContent value="map" className="space-y-6">
