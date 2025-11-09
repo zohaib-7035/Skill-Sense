@@ -1,11 +1,8 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { toast } from "sonner";
-import { Github, Loader2, Code, GitBranch, FileText } from "lucide-react";
+import { Github, Code, GitBranch, FileText } from "lucide-react";
 import { Label } from "./ui/label";
 import { Alert, AlertDescription } from "./ui/alert";
 
@@ -18,79 +15,6 @@ interface GitHubIntegrationProps {
 export function GitHubIntegration({ profileId, onSkillsExtracted, onGithubDataChanged }: GitHubIntegrationProps) {
   const [githubUsername, setGithubUsername] = useState("");
   const [githubToken, setGithubToken] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [metadata, setMetadata] = useState<any>(null);
-
-  const handleExtract = async () => {
-    if (!githubUsername.trim()) {
-      toast.error("Please enter a GitHub username");
-      return;
-    }
-
-    setLoading(true);
-    setMetadata(null);
-
-    try {
-      console.log('Calling GitHub skill extraction for:', githubUsername);
-
-      const { data: functionData, error: functionError } = await supabase.functions.invoke(
-        'github-skill-extract',
-        {
-          body: { 
-            githubUsername: githubUsername.trim(),
-            githubToken: githubToken.trim() || undefined
-          }
-        }
-      );
-
-      if (functionError) {
-        console.error('Function error:', functionError);
-        throw functionError;
-      }
-
-      const skills = functionData.skills || [];
-      const meta = functionData.metadata;
-
-      console.log(`Extracted ${skills.length} skills from GitHub`);
-      setMetadata(meta);
-
-      if (skills.length === 0) {
-        toast.error("No skills found from GitHub profile");
-        return;
-      }
-
-      // Save skills to database
-      const skillsToInsert = skills.map((skill: any) => ({
-        profile_id: profileId,
-        skill_name: skill.skill_name,
-        skill_type: skill.skill_type,
-        confidence_score: skill.confidence_score,
-        evidence: skill.evidence,
-        cluster: skill.cluster,
-        microstory: skill.microstory,
-        state: skill.state,
-        is_confirmed: false
-      }));
-
-      const { error: insertError } = await supabase
-        .from('skills')
-        .insert(skillsToInsert);
-
-      if (insertError) {
-        console.error('Insert error:', insertError);
-        throw insertError;
-      }
-
-      toast.success(`🎉 Extracted ${skills.length} skills from GitHub!`);
-      onSkillsExtracted(skills);
-
-    } catch (error) {
-      console.error('Error extracting GitHub skills:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to extract GitHub skills');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <Card className="p-6 bg-gradient-to-br from-gray-900/5 to-gray-800/5 border-gray-700/20">
@@ -131,7 +55,6 @@ export function GitHubIntegration({ profileId, onSkillsExtracted, onGithubDataCh
                   onGithubDataChanged?.(e.target.value, githubToken);
                 }}
                 className="mt-1"
-                disabled={loading}
               />
             </div>
 
@@ -149,58 +72,12 @@ export function GitHubIntegration({ profileId, onSkillsExtracted, onGithubDataCh
                   onGithubDataChanged?.(githubUsername, e.target.value);
                 }}
                 className="mt-1"
-                disabled={loading}
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Get a token at <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" className="underline">github.com/settings/tokens</a>. Only "public_repo" scope needed.
               </p>
             </div>
-
-            <Button 
-              onClick={handleExtract} 
-              disabled={loading || !githubUsername.trim()}
-              className="w-full gap-2"
-              size="lg"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing GitHub Profile...
-                </>
-              ) : (
-                <>
-                  <Github className="w-4 h-4" />
-                  Extract Skills from GitHub
-                </>
-              )}
-            </Button>
           </div>
-
-          {metadata && (
-            <div className="grid grid-cols-3 gap-3 p-4 bg-background/50 rounded-lg border">
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground mb-1">
-                  <GitBranch className="w-3 h-3" />
-                  Repos
-                </div>
-                <div className="text-xl font-bold">{metadata.repositories_analyzed}</div>
-              </div>
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground mb-1">
-                  <Code className="w-3 h-3" />
-                  Languages
-                </div>
-                <div className="text-xl font-bold">{metadata.languages_found}</div>
-              </div>
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-1 text-sm text-muted-foreground mb-1">
-                  <FileText className="w-3 h-3" />
-                  Topics
-                </div>
-                <div className="text-xl font-bold">{metadata.topics_found}</div>
-              </div>
-            </div>
-          )}
 
           <div className="flex flex-wrap gap-2">
             <Badge variant="secondary" className="text-xs">

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare } from 'lucide-react';
@@ -11,13 +10,6 @@ interface TextInputProps {
 
 export function TextInput({ onTextSubmit, onTextChanged }: TextInputProps) {
   const [text, setText] = useState('');
-
-  const handleSubmit = () => {
-    if (text.trim()) {
-      onTextSubmit(text, 'Manual Input');
-      setText('');
-    }
-  };
 
   return (
     <Card>
@@ -41,9 +33,6 @@ export function TextInput({ onTextSubmit, onTextChanged }: TextInputProps) {
           rows={8}
           className="resize-none"
         />
-        <Button onClick={handleSubmit} disabled={!text.trim()} className="w-full">
-          Analyze Text
-        </Button>
       </CardContent>
     </Card>
   );

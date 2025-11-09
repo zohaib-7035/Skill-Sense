@@ -1,8 +1,6 @@
 import { useState, useRef } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload, FileText, Loader2 } from 'lucide-react';
-import { parseDocument } from '@/lib/documentParser';
+import { Upload, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface FileUploadProps {
@@ -11,24 +9,12 @@ interface FileUploadProps {
 }
 
 export function FileUpload({ onTextExtracted, onFileSelected }: FileUploadProps) {
-  const [loading, setLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFile = async (file: File) => {
-    setLoading(true);
-    try {
-      const text = await parseDocument(file);
-      onTextExtracted(text, file.name);
-      toast.success('Document parsed successfully!');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to parse document');
-    } finally {
-      setLoading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
+    // Just select the file, don't process immediately
+    // Processing will happen via aggregate button
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,7 +86,7 @@ export function FileUpload({ onTextExtracted, onFileSelected }: FileUploadProps)
         >
           <Upload className={`h-12 w-12 mb-4 transition-colors ${isDragging ? 'text-primary' : 'text-muted-foreground'}`} />
           <p className="text-sm text-muted-foreground mb-4">
-            {isDragging ? 'Drop your file here' : 'Click to upload or drag and drop'}
+            {isDragging ? 'Drop your file here' : 'Click to select or drag and drop'}
           </p>
           <input
             ref={fileInputRef}
@@ -109,21 +95,13 @@ export function FileUpload({ onTextExtracted, onFileSelected }: FileUploadProps)
             onChange={handleFileChange}
             className="hidden"
             id="file-upload"
-            disabled={loading}
           />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={loading}
+          <label
+            htmlFor="file-upload"
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 cursor-pointer"
           >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              'Choose File'
-            )}
-          </Button>
+            Choose File
+          </label>
         </div>
       </CardContent>
     </Card>
