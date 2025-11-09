@@ -7,9 +7,10 @@ import { toast } from 'sonner';
 
 interface FileUploadProps {
   onTextExtracted: (text: string, fileName: string) => void;
+  onFileSelected?: (file: File | null) => void;
 }
 
-export function FileUpload({ onTextExtracted }: FileUploadProps) {
+export function FileUpload({ onTextExtracted, onFileSelected }: FileUploadProps) {
   const [loading, setLoading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -33,6 +34,7 @@ export function FileUpload({ onTextExtracted }: FileUploadProps) {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    onFileSelected?.(file);
     await processFile(file);
   };
 
@@ -69,6 +71,7 @@ export function FileUpload({ onTextExtracted }: FileUploadProps) {
       return;
     }
 
+    onFileSelected?.(file);
     await processFile(file);
   };
 

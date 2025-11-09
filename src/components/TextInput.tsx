@@ -6,9 +6,10 @@ import { MessageSquare } from 'lucide-react';
 
 interface TextInputProps {
   onTextSubmit: (text: string, source: string) => void;
+  onTextChanged?: (text: string) => void;
 }
 
-export function TextInput({ onTextSubmit }: TextInputProps) {
+export function TextInput({ onTextSubmit, onTextChanged }: TextInputProps) {
   const [text, setText] = useState('');
 
   const handleSubmit = () => {
@@ -33,7 +34,10 @@ export function TextInput({ onTextSubmit }: TextInputProps) {
         <Textarea
           placeholder="Paste your professional experience, project descriptions, or any relevant content here..."
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value);
+            onTextChanged?.(e.target.value);
+          }}
           rows={8}
           className="resize-none"
         />

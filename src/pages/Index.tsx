@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, LogOut, Brain, Download } from 'lucide-react';
+import { Loader2, LogOut, Brain, Download, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import type { User } from '@supabase/supabase-js';
 
@@ -45,6 +45,16 @@ const Index = () => {
   const [originalText, setOriginalText] = useState('');
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Aggregate extraction states
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingText, setPendingText] = useState('');
+  const [pendingGithub, setPendingGithub] = useState({ username: '', token: '' });
+  const [aggregateProgress, setAggregateProgress] = useState<{
+    github?: string;
+    document?: string;
+    text?: string;
+  }>({});
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -213,6 +223,140 @@ const Index = () => {
     setIsModalOpen(true);
   };
 
+  const handleAggregateExtract = async () => {
+    const hasData = pendingFile || pendingText.trim() || pendingGithub.username.trim();
+    
+    if (!hasData) {
+      toast.error('Please provide at least one data source');
+      return;
+    }
+
+    if (!profileId) return;
+
+    setProcessing(true);
+    setAggregateProgress({});
+    
+    const allSkills: any[] = [];
+
+    try {
+      // Extract from document
+      if (pendingFile) {
+        setAggregateProgress(prev => ({ ...prev, document: 'Processing...' }));
+        try {
+          const { parseDocument } = await import('@/lib/documentParser');
+          const text = await parseDocument(pendingFile);
+          if (text) {
+            const { data, error } = await supabase.functions.invoke('extract-skills', {
+              body: { text },
+            });
+            if (!error && data?.skills) {
+              allSkills.push(...data.skills.map((s: any) => ({ ...s, source: 'Document' })));
+              setAggregateProgress(prev => ({ ...prev, document: `✓ ${data.skills.length} skills` }));
+            }
+          }
+        } catch (error) {
+          setAggregateProgress(prev => ({ ...prev, document: '✗ Failed' }));
+        }
+      }
+
+      // Extract from GitHub
+      if (pendingGithub.username.trim()) {
+        setAggregateProgress(prev => ({ ...prev, github: 'Processing...' }));
+        try {
+          const { data, error } = await supabase.functions.invoke('github-skill-extract', {
+            body: { 
+              username: pendingGithub.username,
+              token: pendingGithub.token || undefined
+            }
+          });
+          if (!error && data?.skills) {
+            allSkills.push(...data.skills.map((s: any) => ({ ...s, source: 'GitHub' })));
+            setAggregateProgress(prev => ({ ...prev, github: `✓ ${data.skills.length} skills` }));
+          }
+        } catch (error) {
+          setAggregateProgress(prev => ({ ...prev, github: '✗ Failed' }));
+        }
+      }
+
+      // Extract from text
+      if (pendingText.trim()) {
+        setAggregateProgress(prev => ({ ...prev, text: 'Processing...' }));
+        try {
+          const { data, error } = await supabase.functions.invoke('extract-skills', {
+            body: { text: pendingText },
+          });
+          if (!error && data?.skills) {
+            allSkills.push(...data.skills.map((s: any) => ({ ...s, source: 'Text' })));
+            setAggregateProgress(prev => ({ ...prev, text: `✓ ${data.skills.length} skills` }));
+          }
+        } catch (error) {
+          setAggregateProgress(prev => ({ ...prev, text: '✗ Failed' }));
+        }
+      }
+
+      // Merge duplicate skills
+      const skillMap = new Map<string, any>();
+      allSkills.forEach(skill => {
+        const key = skill.skill_name.toLowerCase().trim();
+        if (skillMap.has(key)) {
+          const existing = skillMap.get(key);
+          const avgConfidence = (existing.confidence_score + skill.confidence_score) / 2;
+          const combinedEvidence = [...new Set([...existing.evidence, ...skill.evidence])];
+          const sources = existing.source.includes(skill.source) 
+            ? existing.source 
+            : `${existing.source}, ${skill.source}`;
+          
+          skillMap.set(key, {
+            ...existing,
+            confidence_score: avgConfidence,
+            evidence: combinedEvidence,
+            source: sources,
+          });
+        } else {
+          skillMap.set(key, skill);
+        }
+      });
+
+      const mergedSkills = Array.from(skillMap.values());
+
+      // Save to database
+      if (mergedSkills.length > 0) {
+        const skillsToInsert = mergedSkills.map(skill => ({
+          profile_id: profileId,
+          skill_name: skill.skill_name,
+          skill_type: skill.skill_type,
+          confidence_score: skill.confidence_score,
+          evidence: skill.evidence || [],
+          cluster: skill.cluster || 'Other',
+          microstory: skill.microstory || '',
+          state: skill.state || 'unlocked',
+        }));
+
+        const { error: insertError } = await supabase
+          .from('skills')
+          .insert(skillsToInsert);
+
+        if (insertError) throw insertError;
+
+        await loadSkills(profileId);
+        toast.success(`✅ Aggregate Extraction Complete! ${mergedSkills.length} total skills extracted and merged`);
+        
+        // Clear inputs
+        setPendingFile(null);
+        setPendingText('');
+        setPendingGithub({ username: '', token: '' });
+      } else {
+        toast.info('No skills were extracted from the provided sources');
+      }
+    } catch (error) {
+      console.error('Aggregate extraction error:', error);
+      toast.error('Failed to complete aggregate extraction');
+    } finally {
+      setProcessing(false);
+      setAggregateProgress({});
+    }
+  };
+
   const lockedSkills = skills.filter(s => s.state === 'locked');
 
   if (loading) {
@@ -280,13 +424,77 @@ const Index = () => {
                 <GitHubIntegration 
                   profileId={profileId}
                   onSkillsExtracted={loadUserProfile}
+                  onGithubDataChanged={(username, token) => setPendingGithub({ username, token })}
                 />
               )}
               
               <div className="grid gap-6 md:grid-cols-2">
-                <FileUpload onTextExtracted={handleTextExtracted} />
-                <TextInput onTextSubmit={handleTextExtracted} />
+                <FileUpload 
+                  onTextExtracted={handleTextExtracted}
+                  onFileSelected={(file) => setPendingFile(file)}
+                />
+                <TextInput 
+                  onTextSubmit={handleTextExtracted}
+                  onTextChanged={(text) => setPendingText(text)}
+                />
               </div>
+
+              <div className="relative py-4">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Aggregate All Sources
+                  </span>
+                </div>
+              </div>
+
+              <Card className="border-2 border-primary/30 bg-gradient-to-br from-primary/5 to-secondary/5">
+                <CardContent className="pt-6">
+                  {Object.keys(aggregateProgress).length > 0 && (
+                    <div className="mb-4 space-y-2">
+                      {aggregateProgress.github && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span>GitHub:</span>
+                          <Badge variant="secondary">{aggregateProgress.github}</Badge>
+                        </div>
+                      )}
+                      {aggregateProgress.document && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Document:</span>
+                          <Badge variant="secondary">{aggregateProgress.document}</Badge>
+                        </div>
+                      )}
+                      {aggregateProgress.text && (
+                        <div className="flex items-center justify-between text-sm">
+                          <span>Text:</span>
+                          <Badge variant="secondary">{aggregateProgress.text}</Badge>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <Button 
+                    onClick={handleAggregateExtract}
+                    disabled={processing}
+                    size="lg"
+                    className="w-full h-16 text-lg"
+                  >
+                    {processing ? (
+                      <>
+                        <Loader2 className="mr-2 h-6 w-6 animate-spin" />
+                        Aggregating All Sources...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 h-6 w-6" />
+                        Extract & Merge All Skills
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 

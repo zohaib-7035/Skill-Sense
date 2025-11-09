@@ -12,9 +12,10 @@ import { Alert, AlertDescription } from "./ui/alert";
 interface GitHubIntegrationProps {
   profileId: string;
   onSkillsExtracted: (skills: any[]) => void;
+  onGithubDataChanged?: (username: string, token: string) => void;
 }
 
-export function GitHubIntegration({ profileId, onSkillsExtracted }: GitHubIntegrationProps) {
+export function GitHubIntegration({ profileId, onSkillsExtracted, onGithubDataChanged }: GitHubIntegrationProps) {
   const [githubUsername, setGithubUsername] = useState("");
   const [githubToken, setGithubToken] = useState("");
   const [loading, setLoading] = useState(false);
@@ -125,7 +126,10 @@ export function GitHubIntegration({ profileId, onSkillsExtracted }: GitHubIntegr
                 id="github-username"
                 placeholder="e.g., octocat"
                 value={githubUsername}
-                onChange={(e) => setGithubUsername(e.target.value)}
+                onChange={(e) => {
+                  setGithubUsername(e.target.value);
+                  onGithubDataChanged?.(e.target.value, githubToken);
+                }}
                 className="mt-1"
                 disabled={loading}
               />
@@ -140,7 +144,10 @@ export function GitHubIntegration({ profileId, onSkillsExtracted }: GitHubIntegr
                 type="password"
                 placeholder="ghp_xxxxxxxxxxxx (optional, for higher rate limits)"
                 value={githubToken}
-                onChange={(e) => setGithubToken(e.target.value)}
+                onChange={(e) => {
+                  setGithubToken(e.target.value);
+                  onGithubDataChanged?.(githubUsername, e.target.value);
+                }}
                 className="mt-1"
                 disabled={loading}
               />
