@@ -75,6 +75,16 @@ const Index = () => {
     }
   }, [user]);
 
+  // Ensure CV tab remains functional by synthesizing CV text when missing
+  useEffect(() => {
+    if (skills.length > 0 && !originalText) {
+      const synthetic = skills
+        .map((s) => `${s.skill_name}${s.microstory ? `: ${s.microstory}` : ''}`)
+        .join('\n');
+      setOriginalText(synthetic);
+    }
+  }, [skills, originalText]);
+
   const loadUserProfile = async () => {
     if (!user) return;
 

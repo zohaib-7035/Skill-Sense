@@ -5,8 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Target, ExternalLink } from 'lucide-react';
+import { Loader2, Target, ExternalLink, Download } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import jsPDF from 'jspdf';
 import { toast } from 'sonner';
 
 interface Skill {
@@ -42,6 +43,84 @@ export function GapAnalysis({ profileId, skills }: GapAnalysisProps) {
   const [roleDescription, setRoleDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GapResult | null>(null);
+
+  const handleDownload = () => {
+    if (!result) return;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let y = 20;
+
+    doc.setFontSize(18);
+    doc.text('CV Gap Analysis', margin, y);
+    y += 10;
+
+    if (roleTitle) {
+      doc.setFontSize(12);
+      doc.text(`Target Role: ${roleTitle}`, margin, y);
+      y += 7;
+    }
+    if (roleDescription) {
+      doc.setFontSize(10);
+      const lines = doc.splitTextToSize(`Job Description: ${roleDescription}`, pageWidth - 2 * margin);
+      doc.text(lines, margin, y);
+      y += lines.length * 5 + 6;
+    }
+
+    const ensurePage = (threshold = 260) => {
+      if (y > threshold) {
+        doc.addPage();
+        y = 20;
+      }
+    };
+
+    // Matching Skills
+    doc.setFontSize(14);
+    doc.text('Matching Skills', margin, y);
+    y += 7;
+    doc.setFontSize(10);
+    const matching = result.matching_skills.length ? result.matching_skills : ['None'];
+    const mLines = doc.splitTextToSize(matching.map(s => `• ${s}`).join('\n'), pageWidth - 2 * margin);
+    doc.text(mLines, margin, y);
+    y += mLines.length * 5 + 8;
+    ensurePage();
+
+    // Missing Skills
+    doc.setFontSize(14);
+    doc.text('Missing Skills', margin, y);
+    y += 7;
+    doc.setFontSize(10);
+    const missing = result.missing_skills.length ? result.missing_skills : ['None'];
+    const msLines = doc.splitTextToSize(missing.map(s => `• ${s}`).join('\n'), pageWidth - 2 * margin);
+    doc.text(msLines, margin, y);
+    y += msLines.length * 5 + 8;
+    ensurePage();
+
+    // Recommendations
+    doc.setFontSize(14);
+    doc.text('Recommendations', margin, y);
+    y += 7;
+    doc.setFontSize(10);
+
+    result.recommendations.forEach((rec, idx) => {
+      ensurePage();
+      doc.setFont(undefined, 'bold');
+      doc.text(`${idx + 1}. ${rec.skill}`, margin, y);
+      y += 5;
+      doc.setFont(undefined, 'normal');
+
+      const practice = doc.splitTextToSize(`Practice: ${rec.practice_suggestion}`, pageWidth - 2 * margin);
+      doc.text(practice, margin, y);
+      y += practice.length * 5 + 4;
+
+      const resourcesText = rec.resources.map(r => `- ${r.title} (${r.type}) ${r.url}`).join('\n');
+      const rLines = doc.splitTextToSize(resourcesText || '- No resources', pageWidth - 2 * margin);
+      doc.text(rLines, margin, y);
+      y += rLines.length * 5 + 6;
+    });
+
+    doc.save('cv-gap-analysis.pdf');
+  };
 
   const handleAnalyze = async () => {
     if (!roleTitle.trim() || !roleDescription.trim()) {
@@ -148,6 +227,11 @@ export function GapAnalysis({ profileId, skills }: GapAnalysisProps) {
 
       {result && (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button onClick={handleDownload} className="gap-2">
+              <Download className="h-4 w-4" /> Download Gap PDF
+            </Button>
+          </div>
           <Card>
             <CardHeader>
               <CardTitle className="text-green-600">Matching Skills</CardTitle>
