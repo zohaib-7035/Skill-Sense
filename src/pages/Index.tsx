@@ -11,6 +11,7 @@ import { SkillMap } from '@/components/SkillMap';
 import { HiddenSkillDiscovery } from '@/components/HiddenSkillDiscovery';
 import { TeamIntelligence } from '@/components/TeamIntelligence';
 import { GitHubIntegration } from '@/components/GitHubIntegration';
+import { SmartAggregateExtract } from '@/components/SmartAggregateExtract';
 import { UnifiedDataImport } from '@/components/UnifiedDataImport';
 import { SkillDetailModal } from '@/components/SkillDetailModal';
 import { QuestSystem } from '@/components/QuestSystem';
@@ -304,6 +305,24 @@ const Index = () => {
                 profileId={profileId}
                 onDataExtracted={handleTextExtracted}
                 onSkillsExtracted={loadUserProfile}
+              />
+            )}
+
+            <div className="relative py-6">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Advanced Feature
+                </span>
+              </div>
+            </div>
+
+            {profileId && (
+              <SmartAggregateExtract
+                profileId={profileId}
+                onComplete={loadUserProfile}
               />
             )}
           </TabsContent>
